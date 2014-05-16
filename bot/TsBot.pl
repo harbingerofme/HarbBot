@@ -18,7 +18,7 @@ my $botGender="female";#the gender of the bot, accepted inputs are "male","femal
 my $updateRate=30;# time in which we update the currently connected clients.
 my $taskListCommand="tasklist";#command to get all running processes, normally tasklist. If it complains it is not recognized, please visit http://www.computerhope.com/download/winxp.htm to get it working.
 my $taskListCheckInterval=20;#time between executions of above command, on fast computers, this can be reduced severely to catch more errors (even 0 is a possibility, that will barely affect preformance), but on the computer this bot was developed on, this command sometimes took his time to run. 
-my $timeOutTime=30;#maximum amount of time that may elapse between sending an answer and seeing that answer apear in the logs. (aka, time we wait to declare connection with teamspeak has been lost)
+my $timeOutTime=45;#maximum amount of time that may elapse between sending an answer and seeing that answer apear in the logs. (aka, time we wait to declare connection with teamspeak has been lost)
 my $serverMaxClients=25;#maximum number of clients the server supports.
 my @modules= #		enter module names here. Default modules:logging, admin,eightball,generic,advanced, superball,servCommands
 	("logging","admin", "eightball", "generic","advanced","superball","servCommands");
@@ -266,8 +266,8 @@ $echo="";
 					if($message=~/^send (.+)/i){push @mess, "$1";}
 					if($message=~/^stop bot (.+)/i){$debug.="ADMIN stopped the bot from outputting for reason: $1\n";push @mess, "ADMIN stopped the bot from outputting for reason: $1";$active=0;}
 					if($message=~/^start bot/i){$debug.="ADMIN started bot\n";$active=1;push @mess, "ADMIN started the bot again";}
-					if($message=~/^reload bot (.+)/i){$debug.="ADMIN is reloading the bot for reason: $1\n"; push @mess, "ADMIN is reloading the bot for reason: $1";$error="ADMIN reload";$NoError=0;$errCode=499;} 
-					if($message=~/^reload bot$/i){$debug.="ADMIN is silently reloading the bot.\n"; push @echoes, "silently reloading bot";$error="ADMIN silent reload";$NoError=0;$errCode=499}
+					if($message=~/^reload bot (.+)/i){$debug.="ADMIN is reloading the bot for reason: $1\n"; push @mess, "ADMIN is reloading the bot for reason: $1";$error="ADMIN reload";$NoError=0;$errCode=500;} 
+					if($message=~/^reload bot$/i){$debug.="ADMIN is silently reloading the bot.\n"; push @echoes, "silently reloading bot";$error="ADMIN silent reload";$NoError=0;$errCode=500;}
 					if($message=~/^load (.+)/i){$a=$1;if($a~~@availablemodules){if($a!~@modules){push @modules, $a;$debug.="ADMIN loaded module $a";push @echoes,"Module loaded!"}else{push @echoes, "Module already loaded";}}else{push @echoes, "Module does not exist or isn't available";}}
 					if($message=~/^unload (.+)/i){if($a~~@availablemodules){if($a~~@modules){@temp=@modules;@modules=@empty;foreach $b (@temp){if($b!~$a){push @modules, $b;}}push @echoes, "Module unloaded!";}else{push @echoes, "Module isn't loaded\n";}}else{push @echoes, "Module does not exist, or is not allowed to be unloaded.";}}
 					if($message=~/^suspend bot (.+)/i){$a=$1;$debug.="ADMIN suspended bot for $a\n";$suspend=1;push @echoes, "Bot supsended"}#we need to print this message to console and debug first, so we are doing this as the last thing this cycle..
@@ -537,6 +537,8 @@ if ($NoError==0){
 		$ok = $t->open("localhost");
 		$ok = $t->waitfor('/schandler/i');
 		print "\nI tried reconnecting, I hope it worked.\n";
+		$hasSend=0;$sendTime=time();
+		$NoError=1;$errCode=0;
 		}
 	if ($errCode==1){
 		print "\tSince the best way to deal with this is to retry, that's exactly what we are doing. If this message persists, check the file specified.";
