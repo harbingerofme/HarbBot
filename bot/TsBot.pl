@@ -8,7 +8,7 @@ print "Starting up TsBot!\n";
 print "\tTime is now $starttime\n"; 
 use Net::Telnet ();
 my $a;my $b;my $c;my $d;my $e;my $f;
-
+use POSIX;
 
 print "\tLoading Config:\n";
 #Main config
@@ -44,17 +44,19 @@ my @availablemodules=("logging", "eightball", "generic","advanced","superball","
 	my $response;
 	
 	#SUPERball
+	use Digest::MD5 qw(md5 md5_hex md5_base64);
 	my @respondSuper;
 	my $superAmount;
 	my $superResponse;
+	my $protFuser="";
+	my $protFmessage;
+	my $hash;
 	
 	#generic commands
 	my $GE_limit=2;
 	my @genericReplies;
 	my @genericPatterns;
 	my $gen_match=0;
-	my $protFuser="";
-	my $protFmessage;
 
 	#admin
 	my $pokeamount=0;
@@ -369,15 +371,20 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 		#superball
 		if ("superball"~~@modules){
 			if($message=~/^!q .*/){
-			$a=int(rand($superAmount));
+			$hash=md5_hex($message,$user,$starttime);
+			$a=$hash;
+			$a=~s/[^\d]//g;
+			if($a!~/^[\d]{1,8}$/){$a=~s/^([\d]{8}).*/$1/;}
+			$a= $a%$superAmount;
 			$b=$respondSuper[$a];
 			if($message=~/((kawai)|(desu)|(baka))/){$b="I don't speak japanese, ask someone else."}
 			$superResponse="$user: $b";
-			if($user=~$protFuser){$protFuser="";if($message==$protFmessage){$c=matchClient($user);sendTelnet("clientkick reasonid=5 reasonmsg=Protocol\\sF clid=$c");}}
-			if($b=~/Protocol/){$protFmessage=$message;$protFuser=$user;}
+			if($user eq $protFuser){$protFuser="";if($message eq $protFmessage){$c=matchClient($user);sendTelnet("clientkick reasonid=5 reasonmsg=Protocol\\sF clid=$c");}}
+			if($b=~/Protocol/){$protFmessage=$message;$protFuser=$user;print "looking for protocol F!\n";}
 			if($message=~/((H.rbBot)|( you))/i){$superResponse="$user: I won't answer questions about myself";}
 			push @mess, "$superResponse";
-			$debug.="Superball answered $user with response $a: $superResponse\n";
+			
+			$debug.="Superball answered $user\'s question with $a (hash was $hash)";
 			}
 		}
 		
