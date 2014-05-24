@@ -94,6 +94,8 @@ if ("logging"~~@modules){#copy old logs
 	print TELLOG "--------\nThese logs were backed up on $starttime\n";
 	while($a=<TELNET>){
 		if($a=~/clid/){$a=~s/^.*?(clid)/$1/i;}
+		if($a=~/error/){$a=~s/^.*?(error)/$1/i;}
+		if($a=~/^.*?\r$/){$a=~s/^(.*?\r)$/$1\n/}
 		if($a=~/[a-zA-Z0-9]/){
 			print TELLOG "$a";
 			}	
@@ -262,6 +264,7 @@ $echo="";
 					$time=$1;
 					$user=$2;
 					$message=$3;
+					print "PRIVMSG: $time $user: $message\n";	
 					$f=matchClient($user, $clientList);
 					if($message=~/^status/i){$debug.="ADMIN asked for status";$time=localtime();push @echoes, "Localtime=$time. I've been running since $starttime and have served $z commands in that time.\n";}
 					if($message=~/^eval (.+)/i){$a=$1;$debug.="ADMIN used eval($a)\n";push @echoes, eval($a);}
@@ -292,16 +295,16 @@ open(SERVER,"<","server.txt") or print "Error: couldn't open server.txt";
 	while($a=<SERVER>){
 		#splitting input
 		$input=$a;
-		#logging
-		if ("logging"~~@modules){
-		open(SERVLOG, ">>", "serverlog.txt") or $error="Error: couldn't open servlog.txt";#pronounced surflog
-		if(($logSelf==1 or $user!~$botName ) and $a!~/^$/ and $a=~/[a-zA-Z[0-9]/){print SERVLOG $a;}
-		close(SERVLOG);
-			}
-	if($input =~ /^(.*?) ([^:]+): (.+)$/	){
+	if($input =~ /(\<\d\d:\d\d:\d\d\>) ([^:]+): (.+)$/	){
 		$time=$1;
 		$user=$2;
 		$message=$3;
+		print "SERVER: $time $user: $message\n";
+		if ("logging"~~@modules){
+			open(SERVLOG, ">>", "serverlog.txt") or $error="Error: couldn't open servlog.txt";#pronounced surflog
+			if($logSelf==1 or $user!~$botName ){print SERVLOG "$time $user: $message";}
+		}
+			
 		if("servCommands"~~@modules){
 			if($message=~/^!/){
 			$a=inOurChannel($user,$clientList,$botName);
@@ -340,18 +343,17 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 	while($a=<CHAT>){
 		#splitting input
 		$input=$a;
-		#logging
-		if ("logging"~~@modules){
-		open(NEWLOG, ">>", "chatlog.txt") or $error="Error: couldn't open chatlog.txt";
-		if(($logSelf==1 or $user!~$botName ) and $a!~/^$/ and $a=~/[a-zA-Z[0-9]/){print NEWLOG $a;}
-		close(NEWLOG);
-			}
 			
-	if($input =~ /^(.*?) ([^:]+): (.+)$/	){
+	if($input =~ /(\<\d\d:\d\d:\d\d\>) ([^:]+): (.+)$/	){
 		$time=$1;
 		$user=$2;
 		$message=$3;
-			
+		if ("logging"~~@modules){
+			open(NEWLOG, ">>", "chatlog.txt") or $error="Error: couldn't open chatlog.txt";
+			if($logSelf==1 or $user!~$botName ){print NEWLOG"$time $user: $message\n";}
+			close(NEWLOG);
+		}
+			print "CHANNEL: $time $user: $message\n";
 		if($user	eq $botName){$hasSend=0;}
 		if($hasSend==1 and $sendTime+$timeOutTime>time()){$NoError=0;$error="Lost connection with teamspeak, we sent something, but we haven't seen it pass by, reconnecting automaticly.";$errCode=1334;$ok=$t->close()}
 		#after that, we check commands	
