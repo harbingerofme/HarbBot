@@ -21,8 +21,8 @@ my $taskListCheckInterval=20;#time between executions of above command, on fast 
 my $timeOutTime=45;#maximum amount of time that may elapse between sending an answer and seeing that answer apear in the logs. (aka, time we wait to declare connection with teamspeak has been lost)
 my $serverMaxClients=25;#maximum number of clients the server supports.
 my @modules= #		enter module names here. Default modules:logging, admin,eightball,generic,advanced, superball,servCommands
-	("logging","admin", "eightball", "generic","advanced","superball","servCommands");
-my @availablemodules=("logging", "eightball", "generic","advanced","superball","servCommands");#you can't disable admin (unless of course, some idiot uses eval)
+	("logging","admin", "eightball", "generic","advanced","superball","servCommands","anti-spam");
+my @availablemodules=("logging", "eightball", "generic","advanced","superball","servCommands","anti-spam");#you can't disable admin (unless of course, some idiot uses eval)
 
 	
 
@@ -72,6 +72,23 @@ my @availablemodules=("logging", "eightball", "generic","advanced","superball","
 	my $regTimeOut=60*5;
 	my $regTime=time();
 
+	#antiSpam
+	my $asURL="";#leave empty
+	my $asMess="";#leave empty
+	my $asTime;#also leave empty
+	my $asUrlMax=3;#maximum amount that the same url may be posted
+	my $asURLtimeout=5;#in this time unit
+	my $asURLTime=0;#leave empty
+	my $asURLamount=0;#leave empty
+	my $asMessMax=3;#maximum amount that the same messsage (without urls) may be posted
+	my $asMesstimeout=5;#in this time unit
+	my $asMessTime=0;#leave empty
+	my $asMessAmount=0;#leave empty
+	my $asUser="";#leave empty
+	my $asBanTime=10;#time in seconds an user is banned for spamming
+	my $asBanReason="automatic anti spam measurement (AASM)";#the ban reason for spamming
+	
+	
 print "\t\tModules = @modules\n";
 print "\t\tFor Module specific config, see the file itself\n";
 
@@ -94,8 +111,6 @@ if ("logging"~~@modules){#copy old logs
 	print TELLOG "--------\nThese logs were backed up on $starttime\n";
 	while($a=<TELNET>){
 		if($a=~/clid/){$a=~s/^.*?(clid)/$1/i;}
-		if($a=~/error/){$a=~s/^.*?(error)/$1/i;}
-		if($a=~/^.*?\r$/){$a=~s/^(.*?\r)$/$1\n/}
 		if($a=~/[a-zA-Z0-9]/){
 			print TELLOG "$a";
 			}	
@@ -141,6 +156,7 @@ my $z=0;
 my $lastGE=time();
 my $clid;
 my @admins;my @adminNames;my $uniqueID;my $suspend=0;
+$asBanReason=~s/\s/\\s/g;
 
 print "\tLoading Modules:\n";
 if("admin"~~@modules){
@@ -264,7 +280,6 @@ $echo="";
 					$time=$1;
 					$user=$2;
 					$message=$3;
-					print "PRIVMSG: $time $user: $message\n";	
 					$f=matchClient($user, $clientList);
 					if($message=~/^status/i){$debug.="ADMIN asked for status";$time=localtime();push @echoes, "Localtime=$time. I've been running since $starttime and have served $z commands in that time.\n";}
 					if($message=~/^eval (.+)/i){$a=$1;$debug.="ADMIN used eval($a)\n";push @echoes, eval($a);}
@@ -283,7 +298,7 @@ $echo="";
 					if($message=~/^ban n:(\d*) t:(\d*) r:(.*)$/){$a=$1;$a=~s/\s/\\s/g;$b=$2;$c=$3;$c=~s/\s/\\s/g;$d=$a;$a=matchClient($a);if($a!=-1){push @echoes,"$d banned for $b seconds for: $c\n";$debug.="ADMIN banned $d ($a) for $b seconds\n";sendTelnet("banclient clid=$a time=$b banreason=$c");}else{push @echoes, "User not found.";}}
 					if($message=~/^kick (\d*)$/){$a=$1;sendTelnet("clientkick reasonid=5 clid=$a");$debug.="ADMIN kicked $a (no reason)\n";push @echoes,"Kicked $a from the server (no reason specified)";}
 					if($message=~/^kick (\d*) (.*)$/){$a=$1;$b=$2;$b=~s/\s/\\s/g;sendTelnet("clientkick reasonid=5 reasonmsg=$b clid=$a");$debug.="ADMIN kicked $a ($b)\n";push @echoes,"Kicked $a from the server ($b)";}
-					if($message=~/^getCID (.*)/i){$a=$1;$a=~s/\s/\\s/g;if($clientList=~/clid=(\d*) cid=\d*? client_database_id=\d*? client_nickname=$a/i){$b=$1;push @echoes,"Requested CID=$b";}else{push @echoes,"User not found";}}
+					if($message=~/^getCID (.*)/i){$a=$1;$a=~s/\s/\\s/g;if(matchClient($a,$clientList)!=-1){$b=$1;push @echoes,"Requested CID=$b";}else{push @echoes,"User not found";}}
 					foreach $echo (@echoes){$echo=~s/\s/\\s/g;sendTelnet("sendtextmessage targetmode=1 msg=$echo target=$f");$z+=1;}@echoes=@empty;
 				}	
 		}	
@@ -295,16 +310,16 @@ open(SERVER,"<","server.txt") or print "Error: couldn't open server.txt";
 	while($a=<SERVER>){
 		#splitting input
 		$input=$a;
-	if($input =~ /(\<\d\d:\d\d:\d\d\>) ([^:]+): (.+)$/	){
+		#logging
+		if ("logging"~~@modules){
+		open(SERVLOG, ">>", "serverlog.txt") or $error="Error: couldn't open servlog.txt";#pronounced surflog
+		if(($logSelf==1 or $user!~$botName ) and $a!~/^$/ and $a=~/[a-zA-Z[0-9]/){print SERVLOG $a;}
+		close(SERVLOG);
+			}
+	if($input =~ /^(.*?) ([^:]+): (.+)$/	){
 		$time=$1;
 		$user=$2;
 		$message=$3;
-		print "SERVER: $time $user: $message\n";
-		if ("logging"~~@modules){
-			open(SERVLOG, ">>", "serverlog.txt") or $error="Error: couldn't open servlog.txt";#pronounced surflog
-			if($logSelf==1 or $user!~$botName ){print SERVLOG "$time $user: $message";}
-		}
-			
 		if("servCommands"~~@modules){
 			if($message=~/^!/){
 			$a=inOurChannel($user,$clientList,$botName);
@@ -343,17 +358,18 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 	while($a=<CHAT>){
 		#splitting input
 		$input=$a;
+		#logging
+		if ("logging"~~@modules){
+		open(NEWLOG, ">>", "chatlog.txt") or $error="Error: couldn't open chatlog.txt";
+		if(($logSelf==1 or $user!~$botName ) and $a!~/^$/ and $a=~/[a-zA-Z[0-9]/){print NEWLOG $a;}
+		close(NEWLOG);
+			}
 			
-	if($input =~ /(\<\d\d:\d\d:\d\d\>) ([^:]+): (.+)$/	){
+	if($input =~ /^(.*?) ([^:]+): (.+)$/	){
 		$time=$1;
 		$user=$2;
 		$message=$3;
-		if ("logging"~~@modules){
-			open(NEWLOG, ">>", "chatlog.txt") or $error="Error: couldn't open chatlog.txt";
-			if($logSelf==1 or $user!~$botName ){print NEWLOG"$time $user: $message\n";}
-			close(NEWLOG);
-		}
-			print "CHANNEL: $time $user: $message\n";
+			
 		if($user	eq $botName){$hasSend=0;}
 		if($hasSend==1 and $sendTime+$timeOutTime>time()){$NoError=0;$error="Lost connection with teamspeak, we sent something, but we haven't seen it pass by, reconnecting automaticly.";$errCode=1334;$ok=$t->close()}
 		#after that, we check commands	
@@ -374,19 +390,21 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 		if ("superball"~~@modules){
 			if($message=~/^!q .*/){
 			$hash=md5_hex($message,$user,$starttime);
-			$a=$hash;
-			$a=~s/[^\d]//g;
-			if($a!~/^[\d]{1,8}$/){$a=~s/^([\d]{8}).*/$1/;}
-			$a= $a%$superAmount;
+			$a=$hash.ceil($startseconds/100000);;#make sure we always have number in there
+			$a=~s/[^\d]//g;$d=time();$f=0;
+			while($a>=$superAmount){
+				$a+=-$superAmount;
+				$f+=1;
+				}$d=time()-$d;
 			$b=$respondSuper[$a];
 			if($message=~/((kawai)|(desu)|(baka))/){$b="I don't speak japanese, ask someone else."}
 			$superResponse="$user: $b";
-			if($user eq $protFuser){$protFuser="";if($message eq $protFmessage){$c=matchClient($user);sendTelnet("clientkick reasonid=5 reasonmsg=Protocol\\sF clid=$c");}}
+			if($user eq $protFuser){$protFuser="";if($message eq $protFmessage){$c=matchClient($user,$c);sendTelnet("clientkick reasonid=5 reasonmsg=Protocol\\sF clid=$c");}}
 			if($b=~/Protocol/){$protFmessage=$message;$protFuser=$user;print "looking for protocol F!\n";}
 			if($message=~/((H.rbBot)|( you))/i){$superResponse="$user: I won't answer questions about myself";}
 			push @mess, "$superResponse";
 			
-			$debug.="Superball answered $user\'s question with $a (hash was $hash)";
+			$debug.="Superball answered $user\'s question (hash was $hash, we had to reduce it $f times to get $a, it took us $d seconds)";
 			}
 		}
 		
@@ -418,6 +436,48 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 			push @mess, $regMessage;			
 			}		
 		}
+		
+		#anti-spam
+		if("anti-spam"~~@modules){
+			$asTime=$time;
+			$asTime=~/<(\d\d):(\d\d):(\d\d)/;
+			$asTime=$1*3600+$2*60+$3;#converts our time to seconds (this might break whenever a day passes)
+			if($message=~/\[URL\](.*)\[\/URL\]/i){#detects url-spam, the worst kind of spam
+				$a=$1;
+				if($a eq $asURL){#is in our list
+					if($asTime<$asURLTime+$asURLtimeout){
+						$asURLamount+=1;
+						if($asURLamount>=$asUrlMax){#oooh, we have a baddy, let's ban him
+							$b=matchClient($asUser,$clientList);
+							sendTelnet("banclient clid=$b time=$asBanTime banreason=$asBanReason");
+							print"Client Banned for spam!";
+							}
+						}else{
+						$asURLamount=1;
+						}
+					}
+				else{
+					$asURL=$a;
+					}
+			}else{
+				if($asTime<$asMessTime+$asMesstimeout){
+					$asMessAmount+=1;
+						if($asMessAmount>=$asMessMax){
+							$b=matchClient($asUser,$clientList);
+							sendTelnet("banclient clid=$b time=$asBanTime banreason=$asBanReason");
+							print"Client Banned for spam!";
+							}							
+						else{
+							$asMessAmount=1;
+							}
+						}
+					else{
+						$asMess=$a;
+						}
+					}
+			}
+		
+		
 		
 		
 		}#this closes the if <date> user: message
@@ -477,7 +537,7 @@ $ok = $t->waitfor('//');#anything that contains a character (so not an empty lin
 			if($a=~/error/){
 				if($a=~/id=(\d*) msg=(.*)/){
 					$b=$1;$c=$2;
-					if($b==1794){$NoError=0;$error="Not connected to a server";$errCode=1794;}
+					if($b==1795){$NoError=0;$error="Not connected to a server";$errCode=1794;}
 					#if we run into more error id's that are SEVERE, we should write them down here
 					}
 				}
@@ -583,10 +643,12 @@ sub sendTelnet{
 	$ok = $t->print($_[0]);
 	}
 
-sub matchClient{#matchClient(/pattern/,clientlist) - matches input pattern in the clients list. Returns first match found (case insensitive) or -1 if no match was found
+sub matchClient{#matchClient(/pattern/,clientlist) - matches input pattern in the clients list. Returns exact match, or if that isn't found, the first match found (case insensitive) or -1 if no match was found
 	my $pattern=$_[0];my $List=$_[1];my$return=-1;
 	$pattern=~s/[^\\]\s/\\s/;#spaces in names are not spaces in the clientlist.
 	if($List=~/clid=(\d*) cid=\d* client_database_id=\d* client_nickname=$pattern/i)
+	{$return=$1;}
+	if($List=~/clid=(\d*) cid=\d* client_database_id=\d* client_nickname=$pattern /i)#tries to match an exact name.
 	{$return=$1;}
 	return $return;
 }
