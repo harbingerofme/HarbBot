@@ -3,81 +3,79 @@ use warnings;
 open(DEBUG,">>","BotLog.txt");
 my $starttime=localtime();#leave these 2
 my $startseconds=time();
+my $setVersion="0.2";#version of the settings file, this does not need to change every update.
+my $version="0.2";
 
-print "Starting up TsBot!\n";
+print "Starting up TsBot version: $setVersion!\n";
 print "\tTime is now $starttime\n"; 
 use Net::Telnet ();
-my $a;my $b;my $c;my $d;my $e;my $f;
+my $a;my $b;my $c;my $d;my $e;my $f;my @temp;
 use POSIX;
-
+open (TELLOG,">>","input_log.txt");
 print "\tLoading Config:\n";
 #Main config
-
-my $botName="HarbBot";#the exact name of the bot, so we can check if someone calls us, if we call ourselves, etc. 
-my $botGender="female";#the gender of the bot, accepted inputs are "male","female" and "undefined". This has no purpose as of yet, but might be included soon.
-my $updateRate=30;# time in which we update the currently connected clients.
-my $taskListCommand="tasklist";#command to get all running processes, normally tasklist. If it complains it is not recognized, please visit http://www.computerhope.com/download/winxp.htm to get it working.
-my $taskListCheckInterval=20;#time between executions of above command, on fast computers, this can be reduced severely to catch more errors (even 0 is a possibility, that will barely affect preformance), but on the computer this bot was developed on, this command sometimes took his time to run. 
-my $timeOutTime=45;#maximum amount of time that may elapse between sending an answer and seeing that answer apear in the logs. (aka, time we wait to declare connection with teamspeak has been lost)
-my $serverMaxClients=25;#maximum number of clients the server supports.
-my @modules= #		enter module names here. Default modules:logging, admin,eightball,generic,advanced, superball,servCommands
-	("logging","admin", "eightball", "generic","advanced","superball","servCommands");
-my @availablemodules=("logging", "eightball", "generic","advanced","superball","servCommands");#you can't disable admin (unless of course, some idiot uses eval)
-
+my @availablemodules=("logging", "eightball", "generic","advanced","superball","servCommands","anti-spam");#you can't disable admin (unless of course, some idiot uses eval)
+if(open("SETTINGS","<","TsBot_settings.txt")){
+while($a=<SETTINGS>){
+	if($b=~/Name of the bot:/i){my $botName=$a;}
+	if($b=~/Gender of the bot:/i and ($a=~/^female$/i or $a=~/^male$/i or $a=~/^undefined$/i)){my $botGender=$a;}
+	if($b=~/Client update rate:/i and $a=~/^\d+$/){my $updateRate=$a;}
+	if($b=~/Tasklist command:/i){if($a=~/^$/){my $taskListCommand="tasklist";}else{my $taskListCommand=$a;}}
+	if($b=~/Interval for tasklist command/i and $a=~/^\d+$/){my $taskListCheckInterval=$a;}
+	if($b=~/Time we wait to declare connection with teamspeak has been lost:/i and $a=/^\d+$/){my $timeOutTime=$a;}
+	if($b=~/Maximum amount of client that can connect to this server:/i and $a=~/^\d+$/){my $serverMaxClients=$a;}
+	if($b=~/Modules:/i){my @modules=split('[, ]',$a);}
+	if($b=~/Custom modules:/i){@temp=split('[, ]+',$a);foreach$a(@temp){push @availablemodules,$a;}}
+	if($b=~/Version:/){if($setVersion eq $a){my $oldSettings=0;}else{my $oldSettings=1;}}}
+	if($a=~/^#/){$b=$a;}
+	}
+close SETTINGS;
+if($oldSettings==1){print "Your settings file does not match the current version, try renaming it and starting the bot again, and then merge the two files.\n"}
+}else{
+	my $botName="HarbBot";#the exact name of the bot, so we can check if someone calls us, if we call ourselves, etc. 
+	my $botGender="female";#the gender of the bot, accepted inputs are "male","female" and "undefined". This has no purpose as of yet, but might be included soon.
+	my $updateRate=30;# time in which we update the currently connected clients.
+	my $taskListCommand="tasklist";#command to get all running processes, normally tasklist. If it complains it is not recognized, please visit http://www.computerhope.com/download/winxp.htm to get it working.
+	my $taskListCheckInterval=20;#time between executions of above command, on fast computers, this can be reduced severely to catch more errors (even 0 is a possibility, that will barely affect preformance), but on the computer this bot was developed on, this command sometimes took his time to run. 
+	my $timeOutTime=45;#maximum amount of time that may elapse between sending an answer and seeing that answer apear in the logs. (aka, time we wait to declare connection with teamspeak has been lost)
+	my $serverMaxClients=25;#maximum number of clients the server supports.
+	my @modules= #		enter module names here. Default modules:logging, admin,eightball,generic,advanced, superball,servCommands
+	("logging","admin", "eightball", "generic","advanced","superball","servCommands","anti-spam");
+	print "\tSettings file not found. \n\tCreated a new one, make sure to check the settings file after startup.\n";
+	open("SETTINGS",">","TsBot_settings.txt")
+	print SETTINGS "#Name of the bot: This is the name we use to identify the bot \n$botName\n#Gender of the bot: At the moment this does not have a function, but we might use this later\n";
+	print SETTINGS "$botGender\n#Client update rate: time in which we update the currently connected clients. Everytime this happens the bot lags a little bit\n$updateRate\n";
+	print SETTINGS "#Tasklist command: command to get all running processes, normally tasklist. If it doesn't work on your operating system, please change this\n$taskListCommand\n";
+	print SETTINGS "#Interval for tasklist command: depends on how fast the device this bot is running on is. But the default value is fine~ish, if teamspeak runs really stable, you can make the intervals longer\n$taskListCheckInterval\n";
+	print SETTINGS "#Time we wait to declare connection with teamspeak has been lost:\n$timeOutTime\n#Maximum amount of client that can connect to this server:\n";
+	print SETTINGS "$serverMaxClients\n#Modules: list all modules to be loaded here, seperated by a comma\n";
+	foreach$a(@modules){print SETTINGS "$a,";}
+	print SETTINGS "\n#Custom modules: Any custom modules you may have implemented in the code, you have to also add here to make them available to load and unload commands\n\n";
+	print SETTINGS "#Version: Leave this unchanged, unless you know what you are doing\n$setVersion";
+	close SETTINGS;
+}
 	
-
-#module related config
+		
+	print "\t\tModules = @modules\n";
+	print "\t\tLoading modules";
 	
-	#logging
-	my $logSelf=1;#boolean wether or not the bot should log himself (default = true)
-
-	#8ball
-	my @respond8=(
-	"Yes",
-	"No",
-	"Maybe",
-	"No, and if you ask again, it will never be yes",
-	"If you want it",
-	"Once Twisted fixes the server",
-	"You are a nube",
-	"ABSO-FUCKING-LUTELY");
-	my $response;
-	
-	#SUPERball
-	use Digest::MD5 qw(md5 md5_hex md5_base64);
-	my @respondSuper;
-	my $superAmount;
-	my $superResponse;
-	my $protFuser="";
-	my $protFmessage;
-	my $hash;
-	
-	#generic commands
-	my $GE_limit=2;
-	my @genericReplies;
-	my @genericPatterns;
-	my $gen_match=0;
-
-	#admin
-	my $pokeamount=0;
-	my @pokestack;
-	my $lastPoke=0;
-	my $pokeInterval=2;
-	#you are done with the config
-	
-	#servCommands
-	my $regUser="";
-	my $regSet=0;
-	my $regMessage="";
-	my $regTimeOut=60*5;
-	my $regTime=time();
-
-print "\t\tModules = @modules\n";
-print "\t\tFor Module specific config, see the file itself\n";
-
-open (TELLOG,">>","input_log.txt");
-if ("logging"~~@modules){#copy old logs
-	print "\t\t\tArchiving old chat logs\n";
+if("logging"~~@modules){
+	if(open(LOGGER,"<","TsBot_logger.txt")){
+		$b="";
+		while($a=<LOGGER>){
+			if ($b=~/Should we log ourself?: answer with yes or no/ and $a eq "yes"){my $logSelf=1;}
+			if ($b=~/Should we log ourself?: answer with yes or no/ and $a eq "no"){my $logSelf=0;}
+			if($a=~/^#/){$b=$a;}
+			}
+		}else{
+		print "\t\t\tLOGGER: settings file missing, creating a new one.\n"
+		open(LOGGER,">","TsBot_logger.txt");
+		my $logSelf=1;
+		print LOGGER "#Should we log ourself?: answer with yes or no\n$logSelf";
+		close LOGGER;
+		}
+	print "\t\t\tLOGGER: LogSelf = $logSelf\n";
+	print "\t\t\tLOGGER: Archiving old chat logs\n";
 	open(OLDLOG,"<","channel.txt") or die ("Can't open channel.txt: $!");
 	open(NEWLOG, ">>", "chatlog.txt") or die ("Can't open chatlog.txt: $!");
 	my $q=0;
@@ -94,8 +92,6 @@ if ("logging"~~@modules){#copy old logs
 	print TELLOG "--------\nThese logs were backed up on $starttime\n";
 	while($a=<TELNET>){
 		if($a=~/clid/){$a=~s/^.*?(clid)/$1/i;}
-		if($a=~/error/){$a=~s/^.*?(error)/$1/i;}
-		if($a=~/^.*?\r$/){$a=~s/^(.*?\r)$/$1\n/}
 		if($a=~/[a-zA-Z0-9]/){
 			print TELLOG "$a";
 			}	
@@ -112,8 +108,176 @@ if ("logging"~~@modules){#copy old logs
 		close SERVER;
 		print SERVLOG "=========\n";
 		close SERVLOG;
+	}	
+		
 	}
-}
+
+if("eightball"~~@modules){
+	my @respond8
+	if(open(BALL,"<","TsBot_8ball.txt")){
+		$b="";
+		while($a=<BALL>){
+			if ($b=~/List 8 responses below:/){push @respond8, $a;}
+			if($a=/^#/){$b=$a;}
+			}
+		close BALL;
+		}else{
+		print "\t\t\t8Ball: settings file not found, created a new one.";
+		@respond8=("Yes","No","Maybe","No, and if you ask again, it will never be yes","If you want it","Once Twisted fixes the server","You are a nube","ABSO-FUCKING-LUTELY");
+		open(BALL,">","TsBot_8ball.txt");
+		print BALL "#List 8 repsonses below:";
+		foreach$a(@respond8){print BALL "\n$a";}
+		close BALL;
+		}
+	print "\t\t\t8Ball: fully loaded!"	
+	}
+	
+	
+if("superball"~~@modules){
+	use Digest::MD5 qw(md5 md5_hex md5_base64);
+	my @respondSuper;
+	my $superResponse;
+	my $protFuser="";
+	my $protFmessage;
+	my $hash;
+	my $superAmount=0;
+	if(open(RESPONSES,"<","TsBot_superball.txt")){
+			while($a=<RESPONSES>){
+			push @respondSuper, $a;
+			$superAmount+=1;
+			}
+		close RESPONSES;
+	}else{
+		open(RESPONSES,">","TsBot_superball.txt");
+		print RESPONSES "";
+		close RESPONSES;
+		print "\t\t\tSUPERBALL: superball file not found, created a new one.\n";
+	}
+	print "\t\t\tSUPERBALL: Loaded $superAmount responses\n";
+	}
+	
+if("generic"~~@modules){
+	my $GE_limit=2;
+	my @genericReplies;
+	my @genericPatterns;
+	my $gen_match=0;
+	$c=0;$d="";
+	if(open(COMMANDS,"<","TsBot_generic.txt")){
+	while($a=<COMMANDS>){
+		if($d=~/Put your patterns and replies below/){
+			$a=~/([^ ]*) (.*)/;
+			$b=$1;
+			push @genericPatterns, $b;
+			$c+=1;
+			push @genericReplies, $2;
+			}
+		if($d=~/Time between replies/ and $a=~/^\d+$/){$GE_limit=$a;}
+		if($a=~/^#/	){$d=$a;}
+		}
+	close COMMANDS;
+	}else{
+		open(COMMANDS,">","TsBot_generic.txt");
+		print COMMANDS "#Time between replies: to prevent spam, this is the time there should be between such commands\n2\n"
+		print COMMANDS "#Put your patterns and replies below: see the examples\n";
+		print COMMANDS "^!bug Report bugs (and place suggestions) here: [URL]https://github.com/harbingerofme/HarbBot/issues?state=open[/URL]\n";
+		print COMMANDS "^!github My source code, an issue tracker and more, are to be found here: [URL]https://github.com/harbingerofme/HarbBot[/URL]\n";
+		close COMMANDS;
+		print "\t\t\tGENERIC: settings file not found, so created a new one.\n";
+		push @genericPatterns, "^!bug";	push @genericReplies,"Report bugs (and place suggestions) here: [URL]https://github.com/harbingerofme/HarbBot/issues?state=open[/URL]\n";
+		push @genericPatterns, "^!github";	push @genericReplies,"My source code, an issue tracker and more, are to be found here: [URL]https://github.com/harbingerofme/HarbBot[/URL]";
+		$c=2;
+	}
+	print  "\t\t\tGENERIC: Loaded $c commands.\n";
+	}
+	
+	
+if("admin"~~@modules){	
+	my $pokeamount=0;
+	my @pokestack;
+	my $lastPoke=0;
+	my $pokeInterval=2;my @echoes;
+	my @admins;my @adminNames;my $uniqueID;my $echo;
+		if(open(ADMINS,"<","TsBot_admin.txt")){
+	while ($a=<ADMINS>){
+		if($b=~/Listed admins/i and $a=~/^(\w+) (.+)/){$user=$1;$message=$2;push @admins, $message;push @adminNames, $user;}
+		if($b=~/poke interval/i and $a=~/^\d+$/){$pokeInterval=$a;}
+		if($a=~/^#/){$b=$a;}
+	}
+	$messages="ADMIN: Listed admin(s) are:";
+	foreach $user (@adminNames){
+		$messages.=" $user";
+	}
+	print "\t\t\t$messages\n\t\t\tADMIN: Cleaning up their logs\n";
+	foreach $uniqueID (@admins){
+		open(ADMIN,">","clients\\$uniqueID");
+		print ADMIN "";
+		close ADMIN;
+	}}else{
+	open(ADMINS,">","TsBot_admin.txt");
+	print ADMINS "#Poke interval: the time between pokes, the time betweeen pokes, this is an estimate value and will likely be a little bit slower.\n2\nListed admins: <identifier> <name of .txt file of private chat>. It looks something like this\nHarb WjFYQjU5TzdSL2xhUVpYZ1FmZHJ5V3VHNTJRPQ==.txt";
+	close ADMINS;
+	print "\t\t\tADMIN: file missing, created a new one\n";
+	}
+	}
+	
+if("servCommands"~~@modules){
+	my $regUser="";
+	my $regSet=0;
+	my $regMessage="";
+	my $regTimeOut=60*5;
+	my $regTime=time();$b="";
+	if(open(SERV,"<","TsBot_serv.txt")){
+		while($a=<SERV>){
+			if($b=~/Time when another message may be registered by a new user:/ and $a=~/^\d+$/){$regTimeOut=$a;}
+			if($a=~/^#/){$b=$a;}
+			}
+		close SERV;
+		}else{
+		print "\t\t\tservCommands: file missing, created a new one\n";
+		open(SERV,">","TsBot_serv.txt");
+		print SERV "#Time when another message may be registered by a new user:\n300";
+		close SERV;
+		}
+		print "\t\t\tservCommands: Fully loaded!\n";
+	}
+	
+if("anti-spam"~~@modules){
+	my $asURL="";#leave empty
+	my $asMess="";#leave empty
+	my $asTime;#also leave empty
+	my $asUrlMax=3;#maximum amount that the same url may be posted
+	my $asURLtimeout=5;#in this time unit
+	my $asURLTime=0;#leave empty
+	my $asURLamount=0;#leave empty
+	my $asMessMax=3;#maximum amount that the same messsage (without urls) may be posted
+	my $asMesstimeout=5;#in this time unit
+	my $asMessTime=0;#leave empty
+	my $asMessAmount=0;#leave empty
+	my $asUser="";#leave empty
+	my $asBanTime=10;#time in seconds an user is banned for spamming
+	my $asBanReason="automatic anti spam measurement (AASM)";#the ban reason for spamming
+	if(open(AS,"<","TsBot_antispam.txt")){
+		$b="";
+		while($a=<AS>){
+			if($b=~/maximum amount that the same url may be posted/i){$asUrlMax=$a;}
+			if($b=~/in this time unit \(url\)/i){$ULRtimeout=$a;}
+			if($b=~/maximum amount that the same messsage (without urls) may be posted/i){$asMessMax=$a;}
+			if($b=~/in this time unit \(message\)/i){$asMesstimeout=$a;}
+			if($b=~/time in seconds an user is banned for spamming/i){$asBanTime=$a;}
+			if($b=~/the ban reason for spamming/i){$asBanReason=$a;}
+			if($a=~/^#/){$b=$a;}
+			}		
+		close AS;
+		}else{
+		print "ANTISPAM: settings file not found, created a new one";
+		open(AS,">","TsBot_antispam.txt");
+		print AS "#maximum amount that the same url may be posted\n3\n#in this time unit (url)\n5\n#maximum amount that the same messsage (without urls) may be posted\n3\nin this time unit (message)\n5\n#time in seconds an user is banned for spamming\n10\nthe ban reason for spamming\nautomatic anti spam measurement (AASM)";
+		close AS;
+		}
+	$asBanReason=~s/\s/\\s/g;
+	print "ANTISPAM: Operational and ready!"
+	}
+
 	
 	#delete old logs
 open(OLDLOG,">","channel.txt") or die ("Can't open channel.txt: $!");
@@ -128,9 +292,8 @@ print "\tLoading initial values:\n";
 
 my $NoError=1;my $error="";my$errCode=-1;my$do_not_stop=1;
 my $active=1;my $hasSend=0;my $sendTime=time();my $tsCheckTime=time();
-my $echo;
 my $lastUpdate=0;my $lastTime=0;
-my @mess;my @echoes;my @empty;my $transmits;my @temp;my $clientList;my $client;my $full;
+my @mess;my @empty;my $transmits;my $clientList;my $full;
 my $messages;#message to users
 my $time;#time of submitted message
 my $user;#user of submitted message
@@ -138,74 +301,12 @@ my $message;#message of submitted message
 my $debug;#messages only send to console
 my $input;
 my $z=0;
-my $lastGE=time();
 my $clid;
-my @admins;my @adminNames;my $uniqueID;my $suspend=0;
+my $suspend=0;
 
-print "\tLoading Modules:\n";
-if("admin"~~@modules){
-	if(open(ADMINS,"<","TsBot_admin.txt")){
-	while ($a=<ADMINS>){
-		$a=~/(\w+) (.+)/;
-		$user=$1;
-		$message=$2;
-		push @admins, $message;
-		push @adminNames, $user;
-	}
-	$messages="ADMIN: Listed admin(s) are:";
-	foreach $user (@adminNames){
-		$messages.=" $user";
-	}
-	print "\t\t$messages\n\t\t\tCleaning up their logs\n";
-	foreach $uniqueID (@admins){
-		open(ADMIN,">","clients\\$uniqueID");
-		print ADMIN "";
-		close ADMIN;
-	}}else{
-	open(ADMINS,">","TsBot_admin.txt");
-	print ADMINS "";
-	close ADMINS;
-	print "ADMIN: file missing, created a new one\n";
-	}	
-}
-if ("generic"~~@modules){
-	print  "\t\tGENERIC:";
-	$c=0;
-	if(open(COMMANDS,"<","TsBot_generic.txt")){
-	while($a=<COMMANDS>){
-		$a=~/([^ ]*) (.*)/;
-		$b=$1;
-		push @genericPatterns, $b;
-		$c+=1;
-		push @genericReplies, $2;
-		}
-		close COMMANDS;
-	}else{
-		open(COMMANDS,">","TsBot_generic.txt");
-		print COMMANDS "";
-		close COMMANDS;
-		print " generic file not found, so created a new one.";
-	}
-	print " Loaded $c commands.\n";
-}
 
-if ("superball"~~@modules){
-	print "\t\tSUPERBALL:";
-	$superAmount=0;
-	if(open(RESPONSES,"<","TsBot_superball.txt")){
-			while($a=<RESPONSES>){
-			push @respondSuper, $a;
-			$superAmount+=1;
-			}
-		close RESPONSES;
-	}else{
-		open(RESPONSES,">","TsBot_superball.txt");
-		print RESPONSES "";
-		close RESPONSES;
-		print " superball file not found, so created a new one.";
-	}
-	print " Loaded $superAmount responses\n";
-}
+
+
 print"\tMaking connection with teamspeak\n";
 	$b=0;$c=0;
 	while($b==0){
@@ -252,7 +353,7 @@ if($taskListCheckInterval+$tsCheckTime<=time()){
 	if	($b==0){$NoError=0;$error="SEVERE: TeamSpeak not running";$errCode=404;$ok=$t->close()}
 	$tsCheckTime=time();
 }
-	
+if ("admin"~~@modules){	
 $messages="";
 $debug="";
 $echo="";
@@ -264,8 +365,8 @@ $echo="";
 					$time=$1;
 					$user=$2;
 					$message=$3;
-					print "PRIVMSG: $time $user: $message\n";	
 					$f=matchClient($user, $clientList);
+					print "PRIVMSG: $time $user: $message\n";	
 					if($message=~/^status/i){$debug.="ADMIN asked for status";$time=localtime();push @echoes, "Localtime=$time. I've been running since $starttime and have served $z commands in that time.\n";}
 					if($message=~/^eval (.+)/i){$a=$1;$debug.="ADMIN used eval($a)\n";push @echoes, eval($a);}
 					if($message=~/^send (.+)/i){push @mess, "$1";}
@@ -283,19 +384,21 @@ $echo="";
 					if($message=~/^ban n:(\d*) t:(\d*) r:(.*)$/){$a=$1;$a=~s/\s/\\s/g;$b=$2;$c=$3;$c=~s/\s/\\s/g;$d=$a;$a=matchClient($a);if($a!=-1){push @echoes,"$d banned for $b seconds for: $c\n";$debug.="ADMIN banned $d ($a) for $b seconds\n";sendTelnet("banclient clid=$a time=$b banreason=$c");}else{push @echoes, "User not found.";}}
 					if($message=~/^kick (\d*)$/){$a=$1;sendTelnet("clientkick reasonid=5 clid=$a");$debug.="ADMIN kicked $a (no reason)\n";push @echoes,"Kicked $a from the server (no reason specified)";}
 					if($message=~/^kick (\d*) (.*)$/){$a=$1;$b=$2;$b=~s/\s/\\s/g;sendTelnet("clientkick reasonid=5 reasonmsg=$b clid=$a");$debug.="ADMIN kicked $a ($b)\n";push @echoes,"Kicked $a from the server ($b)";}
-					if($message=~/^getCID (.*)/i){$a=$1;$a=~s/\s/\\s/g;if($clientList=~/clid=(\d*) cid=\d*? client_database_id=\d*? client_nickname=$a/i){$b=$1;push @echoes,"Requested CID=$b";}else{push @echoes,"User not found";}}
+					if($message=~/^getCID (.*)/i){$a=$1;$a=~s/\s/\\s/g;if(matchClient($a,$clientList)!=-1){$b=$1;push @echoes,"Requested CID=$b";}else{push @echoes,"User not found";}}
 					foreach $echo (@echoes){$echo=~s/\s/\\s/g;sendTelnet("sendtextmessage targetmode=1 msg=$echo target=$f");$z+=1;}@echoes=@empty;
 				}	
 		}	
 		close ADMIN2;
 		open(ADMIN3,">","clients\\$uniqueID"); print ADMIN3 ""; close ADMIN3;
 	}
+}	
 #While people who can send to global server chat don't make the most reliable people, I suppose we can give them access to some commands.
 open(SERVER,"<","server.txt") or print "Error: couldn't open server.txt";
 	while($a=<SERVER>){
 		#splitting input
 		$input=$a;
-	if($input =~ /(\<\d\d:\d\d:\d\d\>) ([^:]+): (.+)$/	){
+		#logging
+	if($input =~ /^(.*?) ([^:]+): (.+)$/	){
 		$time=$1;
 		$user=$2;
 		$message=$3;
@@ -304,7 +407,6 @@ open(SERVER,"<","server.txt") or print "Error: couldn't open server.txt";
 			open(SERVLOG, ">>", "serverlog.txt") or $error="Error: couldn't open servlog.txt";#pronounced surflog
 			if($logSelf==1 or $user!~$botName ){print SERVLOG "$time $user: $message";}
 		}
-			
 		if("servCommands"~~@modules){
 			if($message=~/^!/){
 			$a=inOurChannel($user,$clientList,$botName);
@@ -344,7 +446,7 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 		#splitting input
 		$input=$a;
 			
-	if($input =~ /(\<\d\d:\d\d:\d\d\>) ([^:]+): (.+)$/	){
+	if($input =~ /^(.*?) ([^:]+): (.+)$/	){
 		$time=$1;
 		$user=$2;
 		$message=$3;
@@ -353,7 +455,8 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 			if($logSelf==1 or $user!~$botName ){print NEWLOG"$time $user: $message\n";}
 			close(NEWLOG);
 		}
-			print "CHANNEL: $time $user: $message\n";
+		print "CHANNEL: $time $user: $message\n";
+			
 		if($user	eq $botName){$hasSend=0;}
 		if($hasSend==1 and $sendTime+$timeOutTime>time()){$NoError=0;$error="Lost connection with teamspeak, we sent something, but we haven't seen it pass by, reconnecting automaticly.";$errCode=1334;$ok=$t->close()}
 		#after that, we check commands	
@@ -375,18 +478,17 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 			if($message=~/^!q .*/){
 			$hash=md5_hex($message,$user,$starttime);
 			$a=$hash;
-			$a=~s/[^\d]//g;
-			if($a!~/^[\d]{1,8}$/){$a=~s/^([\d]{8}).*/$1/;}
-			$a= $a%$superAmount;
+			$a=~s/[^\d]//g;$d=time();$f=0;
+			while($a>=$superAmount){
+				$a+=-$superAmount;
+				$f+=1;
+				}$d=time()-$d;
 			$b=$respondSuper[$a];
 			if($message=~/((kawai)|(desu)|(baka))/){$b="I don't speak japanese, ask someone else."}
 			$superResponse="$user: $b";
-			if($user eq $protFuser){$protFuser="";if($message eq $protFmessage){$c=matchClient($user);sendTelnet("clientkick reasonid=5 reasonmsg=Protocol\\sF clid=$c");}}
-			if($b=~/Protocol/){$protFmessage=$message;$protFuser=$user;print "looking for protocol F!\n";}
-			if($message=~/((H.rbBot)|( you))/i){$superResponse="$user: I won't answer questions about myself";}
 			push @mess, "$superResponse";
 			
-			$debug.="Superball answered $user\'s question with $a (hash was $hash)";
+			$debug.="Superball answered $user\'s question (hash was $hash, we had to reduce it $f times to get $a, it took us $d seconds)";
 			}
 		}
 		
@@ -409,7 +511,7 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 		
 		#servCommands
 		if("servCommands"~~@modules){
-			if($message=~/^!reg\w? (.*)/ and $user eq $regUser and $regSet==2){
+			if($message=~/^!reg\w? (.*)/ and $user eq $regUser){
 			$regMessage=$1;
 			$regSet=1;
 			push @mess, "message registered, anyone can now use !re to access it!";
@@ -418,6 +520,48 @@ close SERVER;open(SERVER,">","server.txt");print SERVER "";close SERVER;
 			push @mess, $regMessage;			
 			}		
 		}
+		
+		#anti-spam
+		if("anti-spam"~~@modules){
+			$asTime=$time;
+			$asTime=~/<(\d\d):(\d\d):(\d\d)/;
+			$asTime=$1*3600+$2*60+$3;#converts our time to seconds (this might break whenever a day passes)
+			if($message=~/\[URL\](.*?)\[\/URL\]/i){#detects url-spam, the worst kind of spam
+				$a=$1;
+				if($a eq $asURL){#is in our list
+					if($asTime<$asURLTime+$asURLtimeout){
+						$asURLamount+=1;
+						if($asURLamount>=$asUrlMax){#oooh, we have a baddy, let's ban him
+							$b=matchClient($asUser,$clientList);
+							sendTelnet("banclient clid=$b time=$asBanTime banreason=$asBanReason");
+							print"Client Banned for spam!";
+							}
+						}else{
+						$asURLamount=1;
+						}
+					}
+				else{
+					$asURL=$a;
+					}
+			}else{
+				if($asTime<$asMessTime+$asMesstimeout){
+					$asMessAmount+=1;
+						if($asMessAmount>=$asMessMax){
+							$b=matchClient($asUser,$clientList);
+							sendTelnet("banclient clid=$b time=$asBanTime banreason=$asBanReason");
+							print"Client Banned for spam!";
+							}							
+						else{
+							$asMessAmount=1;
+							}
+						}
+					else{
+						$asMess=$a;
+						}
+					}
+			}
+		
+		
 		
 		
 		}#this closes the if <date> user: message
@@ -477,7 +621,7 @@ $ok = $t->waitfor('//');#anything that contains a character (so not an empty lin
 			if($a=~/error/){
 				if($a=~/id=(\d*) msg=(.*)/){
 					$b=$1;$c=$2;
-					if($b==1794){$NoError=0;$error="Not connected to a server";$errCode=1794;}
+					if($b==1795){$NoError=0;$error="Not connected to a server";$errCode=1794;}
 					#if we run into more error id's that are SEVERE, we should write them down here
 					}
 				}
@@ -497,8 +641,9 @@ $ok = $t->waitfor('//');#anything that contains a character (so not an empty lin
 }
 	
 if($suspend==1){
-	system("start AutoRestart.bat");
+	system("start TsBot.pl");
 	sleep 365*24*3600;}#if we are suspending, sleep for a year or so, should be enough time for someone to look at the console and figure out what is wrong.
+	
 sleep 1; #to prevent spamming the chat, we take a 1 second break
 
 }
@@ -583,10 +728,12 @@ sub sendTelnet{
 	$ok = $t->print($_[0]);
 	}
 
-sub matchClient{#matchClient(/pattern/,clientlist) - matches input pattern in the clients list. Returns first match found (case insensitive) or -1 if no match was found
+sub matchClient{#matchClient(/pattern/,clientlist) - matches input pattern in the clients list. Returns exact match, or if that isn't found, the first match found (case insensitive) or -1 if no match was found
 	my $pattern=$_[0];my $List=$_[1];my$return=-1;
 	$pattern=~s/[^\\]\s/\\s/;#spaces in names are not spaces in the clientlist.
 	if($List=~/clid=(\d*) cid=\d* client_database_id=\d* client_nickname=$pattern/i)
+	{$return=$1;}
+	if($List=~/clid=(\d*) cid=\d* client_database_id=\d* client_nickname=$pattern /i)#tries to match an exact name.
 	{$return=$1;}
 	return $return;
 }
@@ -595,11 +742,8 @@ sub inOurChannel{#inOurChannel(pattern,$clientlist,$botName)
 	my $pattern=$_[0];my $List=$_[1];my $Name=$botName;my$return=0;
 	my $iocA=matchClient($Name,$List);
 	my $iocB=matchClient($pattern,$List);
-	print "inOurChannel step 0\n";
 	if($List=~/clid=$iocA cid=(\d*)/){
-		print "inOurChannel step 1\n";
 		if($List=~/clid=$iocB cid=$1/){
-			print "inOurChannel step 2\n";
 			$return=1;
 			}
 		}
